@@ -1,36 +1,39 @@
 import os
-import logging
+import sys
+from config import INPUT_DIR, INGESTED_FILE
+from utils import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("ingestor")
+logger = get_logger("ingestor")
 
-INPUT_DIR = "/data/input"
-OUTPUT_FILE = "/data/ingested.txt"
 
 def ingest():
-    content = ""
     files_processed = 0
-    for filename in sorted(os.listdir(INPUT_DIR)):
-        filepath = os.path.join(INPUT_DIR, filename)
-        if os.path.isfile(filepath):
+
+    with open(INGESTED_FILE, "w", encoding="utf-8") as out:
+        for filename in sorted(os.listdir(INPUT_DIR)):
+            if filename.startswith(".") or not filename.endswith(".txt"):
+                logger.info("Skipping file: %s", filename)
+                continue
+
+            filepath = os.path.join(INPUT_DIR, filename)
+            if not os.path.isfile(filepath):
+                continue
+
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
-                    content += f"\n--- {filename} ---\n"
-                    content += f.read()
-                    content += "\n"
+                    out.write(f"\n--- {filename} ---\n")
+                    out.write(f.read())
+                    out.write("\n")
                     files_processed += 1
             except Exception as e:
-                logger.error(f"Failed to read {filename}: {e}")
+                logger.error("Failed to read %s: %s", filename, e)
 
     if files_processed == 0:
-        logger.warning("No input files found in /data/input/")
+        logger.error("No input files found in %s — aborting pipeline.", INPUT_DIR)
+        sys.exit(1)
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
-        out.write(content)
-    logger.info(f"Ingested {files_processed} files -> {OUTPUT_FILE}")
+    logger.info("Ingested %d files -> %s", files_processed, INGESTED_FILE)
+
 
 if __name__ == "__main__":
     ingest()

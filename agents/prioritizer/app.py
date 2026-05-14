@@ -1,37 +1,43 @@
-import os
-import logging
+import re
+import sys
+from config import SUMMARY_FILE, PRIORITIZED_FILE, PRIORITY_KEYWORDS
+from utils import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("prioritizer")
+logger = get_logger("prioritizer")
 
-INPUT_FILE = "/data/summary.txt"
-OUTPUT_FILE = "/data/prioritized.txt"
-
-PRIORITY_KEYWORDS = [
-    "urgent", "today", "asap", "important",
-    "deadline", "critical", "action required"
-]
 
 def score_line(line):
-    """Count how many priority keywords appear in a line."""
     lower = line.lower()
-    return sum(1 for kw in PRIORITY_KEYWORDS if kw in lower)
+    return sum(
+        1 for kw in PRIORITY_KEYWORDS
+        if re.search(rf'\b{re.escape(kw)}\b', lower)
+    )
+
 
 def prioritize():
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
-        lines = [line.strip() for line in f if line.strip()]
+    try:
+        with open(SUMMARY_FILE, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        logger.error("Input file not found: %s", SUMMARY_FILE)
+        sys.exit(1)
+
+    if not lines:
+        logger.error("Summary file is empty — nothing to prioritize.")
+        sys.exit(1)
 
     scored = [(line, score_line(line)) for line in lines]
     scored.sort(key=lambda x: x[1], reverse=True)
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
+    with open(PRIORITIZED_FILE, "w", encoding="utf-8") as out:
         for line, score in scored:
-            out.write(f"[{score}] {line}\n")
+            if score > 0:
+                out.write(f"[{score}] {line}\n")
+            else:
+                out.write(f"{line}\n")
 
-    logger.info(f"Prioritized {len(scored)} items -> {OUTPUT_FILE}")
+    logger.info("Prioritized %d items -> %s", len(scored), PRIORITIZED_FILE)
+
 
 if __name__ == "__main__":
     prioritize()
